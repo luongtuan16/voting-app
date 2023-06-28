@@ -2,12 +2,11 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
-/**
- * @title Ballot
- * @dev Implements voting process along with vote delegation
- */
 contract Ballot {
     struct Voter {
+        address addr;
+        string name;
+        string avatar;
         uint256 weight; // weight is accumulated by delegation
         bool voted; // if true, that person already voted
         address delegate; // person delegated to
@@ -15,24 +14,25 @@ contract Ballot {
     }
 
     struct Proposal {
+        uint256 id;
         string name;
+        string avatar;
         uint256 voteCount; // number of accumulated votes
     }
 
-    address public chairperson;
-
-    mapping(address => Voter) public voters;
-    Proposal[] public proposals;
-
-    address[] public votersAddress;
-
     enum PHASE {
+        init,
         registering,
         voting,
         end
     }
 
-    PHASE public state;
+    address public chairperson;
+    address[] public votersAddress;
+    mapping(address => Voter) public voters;
+    Proposal[] public proposals;
+    PHASE public phase;
+    string public title;
 
     event EventAddProposal(uint256 index, string name);
 
@@ -41,40 +41,55 @@ contract Ballot {
         _;
     }
 
-    constructor() {
+    constructor(string memory _title) {
         chairperson = msg.sender;
         voters[chairperson].weight = 1;
+        title = _title;
     }
 
-    function addProposal(string memory name) public onlyChairPerson {
+    function addProposal(
+        uint256 id,
+        string memory name,
+        string memory avatar
+    ) public onlyChairPerson {
+        uint256 i = 0;
+        for (i; i < proposals.length; i++) if (proposals[i].id == id) break;
+        require(i == proposals.length, "Proposal existed");
         uint256 index = proposals.length;
-        proposals.push(Proposal({name: name, voteCount: 0}));
+        proposals.push(
+            Proposal({id: id, name: name, avatar: avatar, voteCount: 0})
+        );
         emit EventAddProposal(index, name);
     }
 
     function changePhase(PHASE x) public onlyChairPerson {
-        require(x > state, "Can't move to previous phase");
-        state = x;
+        require(x > phase, "Can't move to previous phase");
+        phase = x;
     }
 
-    /**
-     * @dev Give 'voter' the right to vote on this ballot. May only be called by 'chairperson'.
-     * @param voter address of voter
-     */
-    function giveRightToVote(address voter) public onlyChairPerson {
-        require(!voters[voter].voted, "The voter already voted.");
+    function giveRightToVote(
+        address voter,
+        string memory name,
+        string memory avatar
+    ) public onlyChairPerson {
         require(
             voters[voter].weight == 0,
             "The voter already has right to vote."
         );
+        if (bytes(voters[voter].name).length == 0) {
+            voters[voter].name = name;
+        }
+        if (bytes(voters[voter].avatar).length == 0) {
+            voters[voter].avatar = avatar;
+        }
         voters[voter].weight = 1;
-        votersAddress.push(voter);
+        voters[voter].addr = voter;
+        uint256 i = 0;
+        for (i; i < votersAddress.length; i++)
+            if (votersAddress[i] == voter) break;
+        if (i == votersAddress.length) votersAddress.push(voter);
     }
 
-    /**
-     * @dev Delegate your vote to the voter 'to'.
-     * @param to address to which vote is delegated
-     */
     function delegate(address to) public {
         Voter storage sender = voters[msg.sender];
         require(!sender.voted, "You already voted.");
@@ -100,21 +115,42 @@ contract Ballot {
         }
     }
 
-    /**
-     * @dev Give your vote (including votes delegated to you) to proposal 'proposals[proposal].name'.
-     * @param proposal index of proposal in the proposals array
-     */
-    function vote(uint256 proposal) public {
+    function registerVoter(string memory name, string memory avatar) public {
+        require(
+            voters[msg.sender].weight == 0,
+            "The voter already has right to vote."
+        );
+        votersAddress.push(msg.sender);
+        voters[msg.sender].name = name;
+        voters[msg.sender].avatar = avatar;
+        voters[msg.sender].addr = msg.sender;
+    }
+
+    function vote(uint256 id) public {
         Voter storage sender = voters[msg.sender];
+        uint256 proposal;
+        for (proposal; proposal < proposals.length; proposal++)
+            if (proposals[proposal].id == id) break;
+        require(proposal < proposals.length, "Proposal not exist");
         require(sender.weight != 0, "Has no right to vote");
         require(!sender.voted, "Already voted.");
         sender.voted = true;
         sender.votedProposal = proposal;
-
-        // If 'proposal' is out of the range of the array,
-        // this will throw automatically and revert all
-        // changes.
         proposals[proposal].voteCount += sender.weight;
+    }
+
+    function validateChairperson() public view returns (bool isChairperson) {
+        return msg.sender == chairperson;
+    }
+
+    function getVoterStatus() public view returns (uint256 status) {
+        uint256 i = 0;
+        for (i; i < votersAddress.length; i++)
+            if (votersAddress[i] == msg.sender) break;
+        if (i == votersAddress.length) status = 0;
+        else if (voters[votersAddress[i]].weight == 0) status = 1;
+        else if (!voters[votersAddress[i]].voted) status = 2;
+        else status = 3;
     }
 
     function getProposals() public view returns (Proposal[] memory) {
@@ -125,11 +161,63 @@ contract Ballot {
         return votersAddress;
     }
 
-    /**
-     * @dev Computes the winning proposal taking all previous votes into account.
-     * @return winningProposal_ index of winning proposal in the proposals array
-     */
+    function getBallotInfo()
+        public
+        view
+        onlyChairPerson
+        returns (
+            address _chairperson,
+            string memory _title,
+            PHASE _phase,
+            uint256 totalProposals,
+            uint256 totalVoters,
+            uint256 totalRegistrations
+        )
+    {
+        _chairperson = chairperson;
+        _title = title;
+        _phase = phase;
+        totalProposals = proposals.length;
+        totalRegistrations = 0;
+        for (uint256 i = 0; i < votersAddress.length; i++)
+            if (voters[votersAddress[i]].weight == 0) totalRegistrations++;
+        totalVoters = votersAddress.length - totalRegistrations;
+    }
+
+    function getRegisteringVoters()
+        public
+        view
+        onlyChairPerson
+        returns (Voter[] memory)
+    {
+        Voter[] memory _voters = new Voter[](votersAddress.length);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < votersAddress.length; i++)
+            if (voters[votersAddress[i]].weight == 0) {
+                _voters[idx] = voters[votersAddress[i]];
+                idx++;
+            }
+        return _voters;
+    }
+
+    function getValidVoters()
+        public
+        view
+        onlyChairPerson
+        returns (Voter[] memory)
+    {
+        Voter[] memory _voters = new Voter[](votersAddress.length);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < votersAddress.length; i++)
+            if (voters[votersAddress[i]].weight == 1) {
+                _voters[idx] = voters[votersAddress[i]];
+                idx++;
+            }
+        return _voters;
+    }
+
     function winningProposal() public view returns (uint256 winningProposal_) {
+        require(phase == PHASE.end, "Ballot has not finished yet");
         uint256 winningVoteCount = 0;
         for (uint256 p = 0; p < proposals.length; p++) {
             if (proposals[p].voteCount > winningVoteCount) {
@@ -139,11 +227,8 @@ contract Ballot {
         }
     }
 
-    /**
-     * @dev Calls winningProposal() function to get the index of the winner contained in the proposals array and then
-     * @return winnerName_ the name of the winner
-     */
-    function winnerName() public view returns (string memory winnerName_) {
-        winnerName_ = proposals[winningProposal()].name;
+    function getWinner() public view returns (Proposal memory winner) {
+        require(phase == PHASE.end, "Ballot has not finished yet");
+        winner = proposals[winningProposal()];
     }
 }

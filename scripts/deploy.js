@@ -23,7 +23,7 @@ const lockedAmount = hre.ethers.utils.parseEther("0.001");
 // );
 
 const Ballot = await hre.ethers.getContractFactory("Ballot");
-const ballot = await Ballot.connect(acc3).deploy();
+const ballot = await Ballot.connect(acc3).deploy("Who is the most favorite character?");
 
 console.log(
   `Ballot with ${hre.ethers.utils.formatEther(

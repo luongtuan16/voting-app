@@ -1,73 +1,52 @@
-import { Button, Chip, CircularProgress, Container, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
+import { Button, Card, CardActionArea, CardContent, CardMedia, Chip, CircularProgress, Container, Dialog, DialogContent, Grid, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material';
 import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { BALLOT_PHASE_END, BALLOT_PHASE_REGISTERING, BALLOT_PHASE_VOTING } from '../utils/constants';
-
-const rows = [
-    {
-        title: 'Vote for president',
-        shortDesc: 'vote',
-        startDate: '11/12/2022',
-        endDate: '11/1/2023',
-        phase: 0,
-    },
-];
+import { Link, useNavigate } from 'react-router-dom';
+import { BALLOT_PHASE_END, BALLOT_PHASE_INIT, BALLOT_PHASE_REGISTERING, BALLOT_PHASE_VOTING } from '../utils/constants';
+import useContract from '../utils/hooks/useContract';
+import { ethers } from 'ethers';
 
 export default function BallotPage() {
-    const { provider, ballotContract } = useSelector(state => state.etherState);
-    const [signer, setSigner] = useState(null);
-    const [phase, setPhase] = useState(-1);
-    const [address, setAddress] = useState('');
+    const [ballot, setBallot] = useState();
+    const [loading, setLoading] = useState(true);
+    const [winner, setWinner] = useState();
+
+    const { ballotContract, isChairperson, loading: loadingPermission } = useContract();
 
     const navigate = useNavigate();
 
     useEffect(() => {
-        const fetchPhase = async () => {
-            console.log('phase')
-            const phase = await ballotContract.state();
-            setPhase(phase)
+        const fetchBallot = async () => {
+            const ballot = await ballotContract.getBallotInfo();
+            console.log(ballot)
+            setBallot({
+                chairperson: ballot._chairperson,
+                title: ballot._title,
+                phase: ballot._phase,
+                totalProposals: ballot.totalProposals.toNumber(),
+                totalVoters: ballot.totalVoters.toNumber(),
+                totalRegistrations: ballot.totalRegistrations.toNumber(),
+            });
+            setLoading(false);
         }
-        if (ballotContract)
-            fetchPhase(ballotContract);
-    }, [ballotContract]);
+        if (ballotContract && isChairperson)
+            fetchBallot();
+    }, [ballotContract, isChairperson]);
 
-
-    // const connectContract = async (signer) => {
-    //     const ballotContract = new ethers.Contract(contractAddress, contractAbi, signer);
-    //     setContract(ballotContract);
-    //     // ballotContract.on("EventAddProposal", (index, name) => {
-    //     //     console.log(name);
-    //     //     fetchProposals();/////////////////////
-    //     // });
-    // }
-
-    const handleChangePhase = async (ballot) => {
-        ballot.phase = phase;
+    const handleChangePhase = async () => {
         if (ballot.phase >= BALLOT_PHASE_END)
             return;
         try {
-            // console.log(ballot.phase)
-            // await provider.send("eth_requestAccounts", [])
-            // const signer = provider.getSigner()
-            // const ballotContract = new ethers.Contract(contractAddress, contractAbi, signer);
             const res = await ballotContract.changePhase(ballot.phase + 1);
-            console.log(res);
-            setPhase(res)
-            // const proposal = await ballotContract.proposals(0);
-            //setProposals([proposal]);
         } catch (error) {
             console.log(error);
         }
     }
 
-    const handleShowWinner = async (ballot) => {
+    const handleShowWinner = async () => {
         try {
-            // await provider.send("eth_requestAccounts", [])
-            // const signer = provider.getSigner()
-            // const ballotContract = new ethers.Contract(contractAddress, contractAbi, signer);
-            const res = await ballotContract.winnerName();
-            alert(res)
+            const res = await ballotContract.getWinner();
+            setWinner({ name: res.name, avatar: res.avatar, voteCount: res.voteCount.toNumber(), });
         } catch (error) {
             console.log(error);
         }
@@ -75,6 +54,8 @@ export default function BallotPage() {
 
     const renderPhase = (phase) => {
         switch (phase) {
+            case BALLOT_PHASE_INIT:
+                return <Chip label="Init" color="error" />;
             case BALLOT_PHASE_REGISTERING:
                 return <Chip label="Registering" color="warning" />;
             case BALLOT_PHASE_VOTING:
@@ -82,67 +63,91 @@ export default function BallotPage() {
             case BALLOT_PHASE_END:
                 return <Chip label="End" color="success" />;
             default:
-                return <CircularProgress />
+                return <></>
         }
     }
 
-    return (
-        <Container>
-            <h1 className="h4">
-                Ballot page
-            </h1>
-            <div>
-                <Button>Add Ballot</Button>
-            </div>
-            <div>
-                <div>List Ballots</div>
-                <div style={{ display: 'flex' }}>
-                    <TableContainer component={Paper}>
-                        <Table sx={{ minWidth: 650 }} aria-label="simple table">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Title</TableCell>
-                                    <TableCell align="right">Short Description</TableCell>
-                                    <TableCell align="right">Start Date</TableCell>
-                                    <TableCell align="right">End Date</TableCell>
-                                    <TableCell align="right">Phase</TableCell>
-                                    <TableCell align="right">Winner</TableCell>
-                                    <TableCell align="center">View</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {rows.map((row, index) => (
-                                    <TableRow
-                                        key={index}
-                                        sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                                    >
-                                        <TableCell component="th" scope="row">
-                                            {row.title}
-                                        </TableCell>
-                                        <TableCell align="right">{row.shortDesc}</TableCell>
-                                        <TableCell align="right">{row.startDate}</TableCell>
-                                        <TableCell align="right">{row.endDate}</TableCell>
-                                        <TableCell align="right">
-                                            {renderPhase(phase)}
-                                            {(phase === BALLOT_PHASE_REGISTERING || phase === BALLOT_PHASE_VOTING) &&
-                                                <Button variant='outlined' onClick={() => handleChangePhase(row)}>{'>'}</Button>}
-                                        </TableCell>
-                                        <TableCell align="right">
-                                            {phase === BALLOT_PHASE_END &&
-                                                <Button onClick={() => handleShowWinner(row)}>Show Winner</Button>}
-                                        </TableCell>
-                                        {/* <TableCell align="right">{row.winner}</TableCell> */}
-                                        <TableCell align="right">
-                                            <Button onClick={() => navigate('/voters')}>Voters</Button>
-                                            <Button onClick={() => navigate('/proposals')}>Proposals</Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+    return (<Container>
+        {loadingPermission ? <CircularProgress />
+            : (isChairperson ?
+                <div>
+                    {loading ? <CircularProgress />
+                        : <Grid container spacing={2}>
+                            <Grid item xs={12} sx={{ textAlign: 'center', fontSize: '25px', fontWeight: 'bold', }}>
+                                {ballot.title}
+                            </Grid>
+                            <Grid item xs={5}>
+                                <b>Chairperson: </b>
+                            </Grid>
+                            <Grid item xs={4}>
+                                {ballot.chairperson}
+                            </Grid>
+                            <Grid item xs={5}>
+                                <b>Phase: </b>
+                            </Grid>
+                            <Grid item xs={2}>
+                                {renderPhase(ballot.phase)}
+                            </Grid>
+                            <Grid item xs={3}>
+                                {(ballot.phase === BALLOT_PHASE_REGISTERING || ballot.phase === BALLOT_PHASE_VOTING || ballot.phase === BALLOT_PHASE_INIT) &&
+                                    <Button variant='outlined' onClick={() => handleChangePhase()}>Next</Button>}
+                                {ballot.phase === BALLOT_PHASE_END &&
+                                    <Button variant='outlined' onClick={() => handleShowWinner()}>Show Winner</Button>}
+                            </Grid>
+                            <Grid item xs={5}>
+                                <b>Total Proposals: </b>
+                            </Grid>
+                            <Grid item xs={2}>
+                                {ballot.totalProposals}
+                            </Grid>
+                            <Grid item xs={3}>
+                                <Link to={'/proposals'}>Detail</Link>
+                            </Grid>
+                            <Grid item xs={5}>
+                                <b>Total voters: </b>
+                            </Grid>
+                            <Grid item xs={2}>
+                                {ballot.totalVoters}
+                            </Grid>
+                            <Grid item xs={3}>
+                                <Link to={'/voters'}>Detail</Link>
+                            </Grid>
+                            <Grid item xs={5}>
+                                <b>Total Registrations: </b>
+                            </Grid>
+                            <Grid item xs={2}>
+                                {ballot.totalRegistrations}
+                            </Grid>
+                            <Grid item xs={3}>
+                                <Link to={'/voters'}>Detail</Link>
+                            </Grid>
+                        </Grid>}
+                    {!!winner && <Dialog
+                        open={true}
+                        onClose={() => setWinner(null)}
+                    >
+                        <Card sx={{ width: 345, textAlign: 'center' }} key={winner.name}>
+                            <CardActionArea>
+                                <CardMedia
+                                    component="img"
+                                    height="140"
+                                    image={winner.avatar}
+                                    alt="Image"
+                                />
+                                <CardContent>
+                                    <Typography gutterBottom variant="h5" component="div">
+                                        {winner.name}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        {winner.voteCount} votes
+                                    </Typography>
+                                </CardContent>
+                            </CardActionArea>
+                        </Card>
+                    </Dialog>}
                 </div>
-            </div>
-        </Container>
-    );
+                : <span>You don't have permission to view this page!</span>
+            )
+        }
+    </Container >);
 }
