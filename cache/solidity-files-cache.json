@@ -37,8 +37,8 @@
       ]
     },
     "D:\\Learn\\20222\\Project_Engineer\\voting-app\\contracts\\Ballot.sol": {
-      "lastModificationDate": 1687106333529,
-      "contentHash": "aed1dbf720744deccaa72cd5e9518279",
+      "lastModificationDate": 1688049153507,
+      "contentHash": "6e44ede875e7d1a47664f12f3a93f440",
       "sourceName": "contracts/Ballot.sol",
       "solcConfig": {
         "version": "0.8.17",

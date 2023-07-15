@@ -1,35 +1,38 @@
-import MailIcon from '@mui/icons-material/Mail';
+import BallotIcon from '@mui/icons-material/Ballot';
+import EmojiPeopleIcon from '@mui/icons-material/EmojiPeople';
+import HomeIcon from '@mui/icons-material/Home';
+import PersonIcon from '@mui/icons-material/Person';
 import { AppBar, Box, Button, CssBaseline, Divider, Drawer, List, ListItem, ListItemButton, ListItemText, Toolbar, Tooltip, Typography } from '@mui/material';
 import ListItemIcon from '@mui/material/ListItemIcon';
+import { ethers } from 'ethers';
 import React, { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PAGE_ROUTE_BALLOTS, PAGE_ROUTE_HOME, PAGE_ROUTE_PROPOSALS, PAGE_ROUTE_VOTERS } from '../utils/constants';
-import { useDispatch, useSelector } from 'react-redux';
-import { ethers } from 'ethers';
-import { setAccount, setBallotContract, setProvider } from '../utils/redux/ethers.slice';
 import { contractAbi, contractAddress } from '../utils/contract';
+import { setAccount, setBallotContract, setProvider } from '../utils/redux/ethers.slice';
 
 const drawerWidth = 240;
 const sideBarItems = [
     {
         label: "Home",
         path: PAGE_ROUTE_HOME,
-        icon: <MailIcon />,
+        icon: <HomeIcon />,
     },
     {
         label: "Ballot",
         path: PAGE_ROUTE_BALLOTS,
-        icon: <MailIcon />,
+        icon: <BallotIcon />,
     },
     {
         label: "Voter",
         path: PAGE_ROUTE_VOTERS,
-        icon: <MailIcon />,
+        icon: <PersonIcon />,
     },
     {
         label: "Proposal",
         path: PAGE_ROUTE_PROPOSALS,
-        icon: <MailIcon />,
+        icon: <EmojiPeopleIcon />,
     },
 ]
 

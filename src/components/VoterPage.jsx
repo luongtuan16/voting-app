@@ -5,6 +5,8 @@ import { VOTER_STATUS_DEFAULT, VOTER_STATUS_NOT_VOTE, VOTER_STATUS_REGISTERED, V
 import useContract from '../utils/hooks/useContract';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { useSnackbar } from 'notistack';
+import { getReasonFromError } from '../utils';
 
 export default function VoterPage() {
     const { account } = useSelector(state => state.etherState);
@@ -17,6 +19,7 @@ export default function VoterPage() {
 
     const navigate = useNavigate();
     const { ballotContract, isChairperson, loading: loadingPermission } = useContract();
+    const { enqueueSnackbar } = useSnackbar();
 
     useEffect(() => {
         const fetchVoterStatus = async () => {
@@ -57,17 +60,27 @@ export default function VoterPage() {
             const res = await ballotContract.giveRightToVote(newVoter.address, newVoter.name, newVoter.avatar);
             res.wait();
         } catch (error) {
-            console.log(error);
+            enqueueSnackbar(getReasonFromError(error), {
+                autoHideDuration: 3000, variant: 'error'
+            });
         }
     }
 
     const handleRegister = async () => {
         if (voterStatus != VOTER_STATUS_DEFAULT)
             return;
-        try {
-            const res = await ballotContract.registerVoter(newVoter.name, newVoter.avatar);
-        } catch (error) {
-            console.log(error.errorMessage);
+        if (newVoter?.name && newVoter?.avatar) {
+            try {
+                const res = await ballotContract.registerVoter(newVoter.name, newVoter.avatar);
+            } catch (error) {
+                enqueueSnackbar(getReasonFromError(error), {
+                    autoHideDuration: 3000, variant: 'error'
+                });
+            }
+        } else {
+            enqueueSnackbar('Missing value', {
+                autoHideDuration: 3000, variant: 'error'
+            });
         }
     }
 
@@ -78,7 +91,9 @@ export default function VoterPage() {
             const res = await ballotContract.giveRightToVote(register.address, '', '');
             res.wait();
         } catch (error) {
-            console.log(error);
+            enqueueSnackbar(getReasonFromError(error), {
+                autoHideDuration: 3000, variant: 'error'
+            });
         }
     }
 
@@ -90,45 +105,51 @@ export default function VoterPage() {
     const renderVoterView = () => {
         if (voterStatus === VOTER_STATUS_DEFAULT)
             return <div>
-                <div>Register to get right to vote</div>
-                <Button onClick={() => setOpenDialog(true)}>Register Now</Button>
+                <div style={{ marginBottom: '10px' }}> You have to register to get right to vote!</div>
+                <Button onClick={() => setOpenDialog(true)} variant='outlined'>Register Now</Button>
                 <Dialog
                     open={openDialog}
                     onClose={() => { setOpenDialog(false); setVoterInfo(); }}
                     aria-labelledby="edit-apartment"
                 >
-                    <DialogTitle id="edit-apartment">Register</DialogTitle>
-                    <DialogContent>
-                        <Grid container spacing={2}>
-                            <Grid item xs={12}>
-                                <TextField
-                                    placeholder='Name'
-                                    value={newVoter?.name}
-                                    onChange={e => setNewVoter({ ...newVoter, name: e.target.value })}
-                                />
+                    <form onSubmit={e => { e.preventDefault(); handleRegister(); setOpenDialog(false); setVoterInfo(); }}>
+                        <DialogTitle id="edit-apartment">Register</DialogTitle>
+                        <DialogContent>
+                            <Grid container spacing={2}>
+                                <Grid item xs={12}>
+                                    <TextField
+                                        placeholder='Name'
+                                        value={newVoter?.name}
+                                        onChange={e => setNewVoter({ ...newVoter, name: e.target.value })}
+                                        required
+                                        sx={{ width: '100%' }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <TextField
+                                        placeholder='Image'
+                                        value={newVoter?.avatar}
+                                        onChange={e => setNewVoter({ ...newVoter, avatar: e.target.value })}
+                                        required
+                                        sx={{ width: '100%' }}
+                                    />
+                                </Grid>
                             </Grid>
-                            <Grid item xs={12}>
-                                <TextField
-                                    placeholder='Image'
-                                    value={newVoter?.avatar}
-                                    onChange={e => setNewVoter({ ...newVoter, avatar: e.target.value })}
-                                />
-                            </Grid>
-                        </Grid>
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => { setOpenDialog(false); setVoterInfo(); }} color="secondary">
-                            Cancel
-                        </Button>
-                        <Button onClick={() => { handleRegister(); setOpenDialog(false); setVoterInfo(); }} color="primary">
-                            Submit
-                        </Button>
-                    </DialogActions>
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={() => { setOpenDialog(false); setVoterInfo(); }} color="error" variant='outlined'>
+                                Cancel
+                            </Button>
+                            <Button type='submit' color="primary" variant='outlined'>
+                                Submit
+                            </Button>
+                        </DialogActions>
+                    </form>
                 </Dialog>
             </div>
         if (voterStatus === VOTER_STATUS_REGISTERED)
             return <div>
-                <div>You have registered! Please wait for chairperson's approval.</div>
+                <div style={{marginBottom: '20px'}}>You have registered! Please wait for chairperson's approval.</div>
                 {voterInfo ? <Card sx={{ width: 400, textAlign: 'center', margin: "0px 20px 20px 0px" }} key={voterInfo.addr}>
                     <CardActionArea>
                         <CardMedia
@@ -136,6 +157,7 @@ export default function VoterPage() {
                             height="160"
                             image={voterInfo.avatar}
                             alt="Image"
+                            sx={{ objectFit: 'fill' }}
                         />
                         <CardContent>
                             <Typography gutterBottom variant="h5" component="div">
@@ -164,6 +186,7 @@ export default function VoterPage() {
                         height="160"
                         image={voterInfo.avatar}
                         alt="Image"
+                        sx={{ objectFit: 'fill' }}
                     />
                     <CardContent>
                         <Typography gutterBottom variant="h5" component="div">
@@ -179,13 +202,13 @@ export default function VoterPage() {
                         size="small" color="primary" variant='contained'
                         onClick={() => navigate('/proposals')}
                     >
-                        Vote Now
+                        Go to Vote Now
                     </Button>}
                     {voterStatus === VOTER_STATUS_VOTED && <Button
                         size="small" color="success" variant='contained'
                         disabled
                     >
-                        Show Voted Proposal
+                        You have already voted
                     </Button>}
                 </div>
             </Card> : <CircularProgress />}
@@ -196,14 +219,16 @@ export default function VoterPage() {
         <Container>
             {loadingPermission ? <CircularProgress /> :
                 (isChairperson ? <div>
-                    <h1 className="h4">
-                        Voter page
-                    </h1>
-                    <div>
-                        <Button onClick={() => setOpenDialog(true)}>Add Voter</Button>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <h1 className="h4">
+                            Voter page
+                        </h1>
+                        <div>
+                            <Button variant='outlined' onClick={() => setOpenDialog(true)}>+ Add Voter</Button>
+                        </div>
                     </div>
                     <div>
-                        <div>List Voters</div>
+                        <div style={{ fontWeight: '600', marginBottom: '10px', }}>{`List Voters (${voters?.length ?? 0})`}</div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
                             {voters ?
                                 voters?.map(voter => <Card sx={{ width: 400, textAlign: 'center', margin: "0px 20px 20px 0px" }} key={voter.addr}>
@@ -213,6 +238,7 @@ export default function VoterPage() {
                                             height="160"
                                             image={voter.avatar}
                                             alt="Image"
+                                            sx={{ objectFit: 'fill' }}
                                         />
                                         <CardContent>
                                             <Typography gutterBottom variant="h5" component="div">
@@ -241,7 +267,7 @@ export default function VoterPage() {
                         </div>
                     </div>
                     <div>
-                        <div>List Registrations</div>
+                        <div style={{ fontWeight: '600', marginBottom: '10px', }}>{`List Registrations (${registeringVoters?.length ?? 0})`}</div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
                             {registeringVoters ?
                                 registeringVoters?.map(voter => <Card sx={{ width: 400, textAlign: 'center', margin: "0px 20px 20px 0px" }} key={voter.addr}>
@@ -251,6 +277,7 @@ export default function VoterPage() {
                                             height="160"
                                             image={voter.avatar}
                                             alt="Image"
+                                            sx={{ objectFit: 'fill' }}
                                         />
                                         <CardContent>
                                             <Typography gutterBottom variant="h5" component="div">
@@ -274,40 +301,49 @@ export default function VoterPage() {
                         onClose={handleCloseDialog}
                         aria-labelledby="edit-apartment"
                     >
-                        <DialogTitle id="edit-apartment">Add Voter</DialogTitle>
-                        <DialogContent>
-                            <Grid container spacing={2}>
-                                <Grid item xs={12}>
-                                    <TextField
-                                        placeholder='Address'
-                                        value={newVoter?.address}
-                                        onChange={e => setNewVoter({ ...newVoter, address: e.target.value })}
-                                    />
+                        <form onSubmit={e => { e.preventDefault(); handleAddVoter(); handleCloseDialog(); }}>
+                            <DialogTitle id="edit-apartment">Add Voter</DialogTitle>
+                            <DialogContent>
+                                <Grid container spacing={2}>
+                                    <Grid item xs={12}>
+                                        <TextField
+                                            placeholder='Address'
+                                            value={newVoter?.address}
+                                            onChange={e => setNewVoter({ ...newVoter, address: e.target.value })}
+                                            required
+                                            sx={{ width: '100%' }}
+
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                        <TextField
+                                            placeholder='Name'
+                                            value={newVoter?.name}
+                                            onChange={e => setNewVoter({ ...newVoter, name: e.target.value })}
+                                            required
+                                            sx={{ width: '100%' }}
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                        <TextField
+                                            placeholder='Image'
+                                            value={newVoter?.avatar}
+                                            onChange={e => setNewVoter({ ...newVoter, avatar: e.target.value })}
+                                            required
+                                            sx={{ width: '100%' }}
+                                        />
+                                    </Grid>
                                 </Grid>
-                                <Grid item xs={12}>
-                                    <TextField
-                                        placeholder='Name'
-                                        value={newVoter?.name}
-                                        onChange={e => setNewVoter({ ...newVoter, name: e.target.value })}
-                                    />
-                                </Grid>
-                                <Grid item xs={12}>
-                                    <TextField
-                                        placeholder='Image'
-                                        value={newVoter?.avatar}
-                                        onChange={e => setNewVoter({ ...newVoter, avatar: e.target.value })}
-                                    />
-                                </Grid>
-                            </Grid>
-                        </DialogContent>
-                        <DialogActions>
-                            <Button onClick={handleCloseDialog} color="secondary">
-                                Cancel
-                            </Button>
-                            <Button onClick={() => { handleAddVoter(); handleCloseDialog(); }} color="primary">
-                                Submit
-                            </Button>
-                        </DialogActions>
+                            </DialogContent>
+                            <DialogActions>
+                                <Button onClick={handleCloseDialog} color="secondary">
+                                    Cancel
+                                </Button>
+                                <Button type='submit' color="primary">
+                                    Submit
+                                </Button>
+                            </DialogActions>
+                        </form>
                     </Dialog>
                 </div>
                     : renderVoterView())}

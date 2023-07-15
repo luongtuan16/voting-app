@@ -7,9 +7,8 @@ contract Ballot {
         address addr;
         string name;
         string avatar;
-        uint256 weight; // weight is accumulated by delegation
+        uint256 weight; // weight
         bool voted; // if true, that person already voted
-        address delegate; // person delegated to
         uint256 votedProposal; // index of the voted proposal
     }
 
@@ -52,6 +51,7 @@ contract Ballot {
         string memory name,
         string memory avatar
     ) public onlyChairPerson {
+        require(phase == PHASE.init, "Can't add proposals at this phase");
         uint256 i = 0;
         for (i; i < proposals.length; i++) if (proposals[i].id == id) break;
         require(i == proposals.length, "Proposal existed");
@@ -72,6 +72,7 @@ contract Ballot {
         string memory name,
         string memory avatar
     ) public onlyChairPerson {
+        require(phase < PHASE.voting, "Can't add voters at this phase");
         require(
             voters[voter].weight == 0,
             "The voter already has right to vote."
@@ -90,32 +91,8 @@ contract Ballot {
         if (i == votersAddress.length) votersAddress.push(voter);
     }
 
-    function delegate(address to) public {
-        Voter storage sender = voters[msg.sender];
-        require(!sender.voted, "You already voted.");
-        require(to != msg.sender, "Self-delegation is disallowed.");
-
-        while (voters[to].delegate != address(0)) {
-            to = voters[to].delegate;
-
-            // We found a loop in the delegation, not allowed.
-            require(to != msg.sender, "Found loop in delegation.");
-        }
-        sender.voted = true;
-        sender.delegate = to;
-        Voter storage delegate_ = voters[to];
-        if (delegate_.voted) {
-            // If the delegate already voted,
-            // directly add to the number of votes
-            proposals[delegate_.votedProposal].voteCount += sender.weight;
-        } else {
-            // If the delegate did not vote yet,
-            // add to her weight.
-            delegate_.weight += sender.weight;
-        }
-    }
-
     function registerVoter(string memory name, string memory avatar) public {
+        require(phase == PHASE.registering, "Can't register at this phase");
         require(
             voters[msg.sender].weight == 0,
             "The voter already has right to vote."
@@ -127,6 +104,7 @@ contract Ballot {
     }
 
     function vote(uint256 id) public {
+        require(phase == PHASE.voting, "Can't give vote at this phase");
         Voter storage sender = voters[msg.sender];
         uint256 proposal;
         for (proposal; proposal < proposals.length; proposal++)
@@ -164,7 +142,6 @@ contract Ballot {
     function getBallotInfo()
         public
         view
-        onlyChairPerson
         returns (
             address _chairperson,
             string memory _title,

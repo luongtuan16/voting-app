@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 import useContract from '../utils/hooks/useContract';
 import { useSelector } from 'react-redux';
 import { VOTER_STATUS_DEFAULT, VOTER_STATUS_NOT_VOTE, VOTER_STATUS_VOTED } from '../utils/constants';
+import { getReasonFromError } from '../utils';
+import { useSnackbar } from 'notistack';
 
 export default function ProposalPage() {
     const [newProposal, setNewProposal] = useState();
@@ -10,6 +12,7 @@ export default function ProposalPage() {
     const [proposals, setProposals] = useState([]);
     const [voterStatus, setVoterStatus] = useState();
     const { ballotContract, isChairperson, loading: loadingPermission } = useContract();
+    const { enqueueSnackbar } = useSnackbar();
 
     useEffect(() => {
         const fetchProposals = async () => {
@@ -35,19 +38,23 @@ export default function ProposalPage() {
         try {
             const res = await ballotContract.addProposal(Number(newProposal.id), newProposal.name, newProposal.avatar);
         } catch (error) {
-            console.log(error.errorMessage);
+            enqueueSnackbar(getReasonFromError(error), {
+                autoHideDuration: 3000, variant: 'error'
+            });
         }
     }
 
     const handleVoteProposal = async (id) => {
-        if (voterStatus !== VOTER_STATUS_NOT_VOTE){
+        if (voterStatus !== VOTER_STATUS_NOT_VOTE) {
             alert('Cant vote')
             return;
         }
         try {
             const res = await ballotContract.vote(id);
         } catch (error) {
-            console.info(error.message);
+            enqueueSnackbar(getReasonFromError(error), {
+                autoHideDuration: 3000, variant: 'error'
+            });
         }
     }
 
@@ -61,12 +68,14 @@ export default function ProposalPage() {
             {loadingPermission ? <CircularProgress /> :
                 ((voterStatus === VOTER_STATUS_NOT_VOTE || voterStatus === VOTER_STATUS_VOTED || isChairperson)
                     ? <div>
-                        <h1 className="h4">
-                            Proposal page
-                        </h1>
-                        {isChairperson && <div>
-                            <Button variant='outlined' onClick={() => setOpenDialog(true)}>+ Add Proposal</Button>
-                        </div>}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h1 className="h4">
+                                PROPROSAL PAGE
+                            </h1>
+                            {isChairperson && <div>
+                                <Button variant='outlined' onClick={() => setOpenDialog(true)}>+ Add Proposal</Button>
+                            </div>}
+                        </div>
                         <div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
                                 {proposals.map(proposal =>
@@ -77,6 +86,7 @@ export default function ProposalPage() {
                                                 height="140"
                                                 image={proposal.avatar}
                                                 alt="Image"
+                                                sx={{ objectFit: 'fill' }}
                                             />
                                             <CardContent>
                                                 <Typography gutterBottom variant="h5" component="div">
@@ -111,40 +121,48 @@ export default function ProposalPage() {
                             onClose={handleCloseDialog}
                             aria-labelledby="edit-apartment"
                         >
-                            <DialogTitle id="edit-apartment">Add Proposal</DialogTitle>
-                            <DialogContent>
-                                <Grid container spacing={2}>
-                                    <Grid item xs={12}>
-                                        <TextField
-                                            placeholder='Id'
-                                            value={newProposal?.id}
-                                            onChange={e => setNewProposal({ ...newProposal, id: e.target.value })}
-                                        />
+                            <form onSubmit={(e) => { e.preventDefault(); handleAddProposal(); handleCloseDialog(); }}>
+                                <DialogTitle id="edit-apartment">Add Proposal</DialogTitle>
+                                <DialogContent>
+                                    <Grid container spacing={2}>
+                                        <Grid item xs={12}>
+                                            <TextField
+                                                placeholder='Id'
+                                                value={newProposal?.id}
+                                                onChange={e => setNewProposal({ ...newProposal, id: e.target.value })}
+                                                required
+                                                sx={{ width: '100%' }}
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12}>
+                                            <TextField
+                                                placeholder='Name'
+                                                value={newProposal?.name}
+                                                onChange={e => setNewProposal({ ...newProposal, name: e.target.value })}
+                                                required
+                                                sx={{ width: '100%' }}
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12}>
+                                            <TextField
+                                                placeholder='Image'
+                                                value={newProposal?.avatar}
+                                                onChange={e => setNewProposal({ ...newProposal, avatar: e.target.value })}
+                                                required
+                                                sx={{ width: '100%' }}
+                                            />
+                                        </Grid>
                                     </Grid>
-                                    <Grid item xs={12}>
-                                        <TextField
-                                            placeholder='Name'
-                                            value={newProposal?.name}
-                                            onChange={e => setNewProposal({ ...newProposal, name: e.target.value })}
-                                        />
-                                    </Grid>
-                                    <Grid item xs={12}>
-                                        <TextField
-                                            placeholder='Image'
-                                            value={newProposal?.avatar}
-                                            onChange={e => setNewProposal({ ...newProposal, avatar: e.target.value })}
-                                        />
-                                    </Grid>
-                                </Grid>
-                            </DialogContent>
-                            <DialogActions>
-                                <Button onClick={handleCloseDialog} color="secondary">
-                                    Cancel
-                                </Button>
-                                <Button onClick={() => { handleAddProposal(); handleCloseDialog(); }} color="primary">
-                                    Submit
-                                </Button>
-                            </DialogActions>
+                                </DialogContent>
+                                <DialogActions>
+                                    <Button onClick={handleCloseDialog} color="secondary">
+                                        Cancel
+                                    </Button>
+                                    <Button type='submit' color="primary">
+                                        Submit
+                                    </Button>
+                                </DialogActions>
+                            </form>
                         </Dialog>
                     </div>
                     : (voterStatus === VOTER_STATUS_DEFAULT
